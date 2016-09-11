@@ -7,19 +7,20 @@ import psycopg2
 import sys, os
 
 DATABASE_NAME = 'dds_assgn1'
-
+partitions = 0
 
 def getopenconnection(user='postgres', password='1234', dbname='dds_assgn1'):
     return psycopg2.connect("dbname='" + dbname + "' user='" + user + "' host='localhost' password='" + password + "'")
 
 
 def loadratings(ratingstablename, ratingsfilepath, openconnection):
-
+    return
     cur = openconnection.cursor()
     cur.execute("SELECT * FROM information_schema.tables WHERE table_name=%s", (ratingstablename,))
 
     if (bool(cur.rowcount) <> True):
-        cur.execute("CREATE TABLE test (UserId int, MovieId int, Rating decimal);")
+        cur.execute("CREATE TABLE "+ratingstablename+" (UserId int, MovieId int, Rating decimal);")
+        #cur.execute("CREATE TABLE test_"+ratingstablename+" (UserId int, MovieId int, Rating decimal);")
         print "Table created"
     else:
         print "Table already created"
@@ -32,13 +33,14 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
         for line in f:
             if not last_line == None:
                 table_data = last_line.splitlines()[0].split('::')
+                print table_data[0]
                 count += 1
                 try:
-                    print table_data[0]
                     query_string = (cur.mogrify('(%s,%s,%s)',(table_data[0], table_data[1], table_data[2])),) + query_string
                     if (count == 2000):
                         query_str = ','.join(query_string)
-                        cur.execute("INSERT INTO test VALUES " + query_str)
+                        cur.execute("INSERT INTO "+ratingstablename+" VALUES " + query_str)
+                        #cur.execute("INSERT INTO test_"+ratingstablename+" VALUES " + query_str)
                         count = 0
                         query_string = ()
                 except Exception, e:
@@ -49,10 +51,41 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
             table_data = last_line.splitlines()[0].split('::')
             query_string = (cur.mogrify('(%s,%s,%s)',(table_data[0], table_data[1], table_data[2])),) + query_string
             query_str = ','.join(query_string)
-            cur.execute("INSERT INTO test VALUES " + query_str)
+            cur.execute("INSERT INTO "+ratingstablename+" VALUES " + query_str)
+            #cur.execute("INSERT INTO test_"+ratingstablename+" VALUES " + query_str)
+    cur.execute("CREATE TABLE test_"+ratingstablename+" AS SELECT * FROM "+ratingstablename+";")
+
 
 def rangepartition(ratingstablename, numberofpartitions, openconnection):
-    pass
+    global partitions
+    partitions = numberofpartitions
+    return
+    cur = openconnection.cursor()
+    range_start = 0.0
+    range_end = 5.0/numberofpartitions
+    increment = 5.0/numberofpartitions
+
+    cur.execute("DELETE FROM "+ratingstablename+";")
+
+    for n in range(numberofpartitions):
+        if(n == numberofpartitions - 1):
+            range_end = 5.1
+        try:
+            create = "CREATE TABLE "+ratingstablename+str(n)+" (CHECK (rating >= "+str(range_start)+" AND rating < "+str(range_end)+")) INHERITS ("+ratingstablename+");"
+            cur.execute(create)
+            insert = "INSERT INTO "+ratingstablename+str(n)+" (userid, movieid, rating) SELECT userid, movieid, rating FROM test_"+ratingstablename+" WHERE rating >= "+str(range_start)+" AND rating < "+str(range_end)+";"
+            cur.execute(insert)
+            #delete = "DELETE FROM test_"+ratingstablename+" WHERE rating >= "+str(range_start)+" AND rating < "+str(range_end)+" ;"
+            #cur.execute(delete)
+            #update = "WITH tmp_test_test AS (DELETE FROM test_"+ratingstablename+" WHERE rating >= "+str(range_start)+" AND rating < "+str(range_end)+" RETURNING *) INSERT INTO "+ratingstablename+str(n)+" SELECT * FROM tmp_test_test ;"
+            #cur.execute(update)
+        except Exception, e:
+            print e
+
+        range_start += increment
+        range_end += increment
+
+    cur.execute("DROP TABLE test_"+ratingstablename+";")
 
 
 def roundrobinpartition(ratingstablename, numberofpartitions, openconnection):
@@ -64,8 +97,23 @@ def roundrobininsert(ratingstablename, userid, itemid, rating, openconnection):
 
 
 def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
-    pass
+    cur = openconnection.cursor()
+    range_start = 0.0
+    range_end = 5.0/partitions
+    increment = 5.0/partitions
+    for n in range(partitions):
+        if(n == partitions - 1):
+            range_end = 5.1
 
+        if(rating >= range_start and rating < range_end):
+
+            try:
+                cur.execute("INSERT INTO "+ratingstablename+str(n)+" (userid, movieid, rating) VALUES (%s, %s, %s)", (userid, itemid, rating))
+            except Exception, e:
+                print e
+
+        range_start += increment
+        range_end += increment
 
 def create_db(dbname):
     """
@@ -109,7 +157,8 @@ def before_test_script_starts_middleware(openconnection, databasename):
 
 def after_test_script_ends_middleware(openconnection, databasename):
     # Use it if you want to
-    pass
+    rangepartition('test', 5, openconnection)
+    rangeinsert('test', 71568, 122, 2.5, openconnection)
 
 
 if __name__ == '__main__':
