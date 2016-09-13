@@ -18,37 +18,15 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
     cur = openconnection.cursor()
     cur.execute("SELECT * FROM information_schema.tables WHERE table_name=%s", (ratingstablename,))
 
-    if (bool(cur.rowcount) <> True):
-        cur.execute("CREATE TABLE "+ratingstablename+" (UserId int, MovieId int, Rating decimal);")
-        print "Table created"
-    else:
-        print "Table already created"
+    if (bool(cur.rowcount) == True):
+        cur.execute("DROP TABLE "+ratingstablename+";")
+
+    cur.execute("CREATE TABLE "+ratingstablename+" (UserId int, drop1 varchar, MovieId int, drop2 varchar, Rating decimal, drop3 varchar, drop4 varchar);")
 
     with open(ratingsfilepath) as f:
-        count = 0
-        last_line = None
-        query_string = ()
+        cur.copy_from(f, ratingstablename, sep=":")
 
-        for line in f:
-            if not last_line == None:
-                table_data = last_line.splitlines()[0].split('::')
-                count += 1
-                try:
-                    query_string = (cur.mogrify('(%s,%s,%s)',(table_data[0], table_data[1], table_data[2])),) + query_string
-                    if (count == 2000):
-                        query_str = ','.join(query_string)
-                        cur.execute("INSERT INTO "+ratingstablename+" VALUES " + query_str)
-                        count = 0
-                        query_string = ()
-                except Exception, e:
-                    print e
-            last_line = line
-
-        if not last_line == None:
-            table_data = last_line.splitlines()[0].split('::')
-            query_string = (cur.mogrify('(%s,%s,%s)',(table_data[0], table_data[1], table_data[2])),) + query_string
-            query_str = ','.join(query_string)
-            cur.execute("INSERT INTO "+ratingstablename+" VALUES " + query_str)
+    cur.execute("ALTER TABLE "+ratingstablename+" DROP COLUMN drop1, DROP COLUMN drop2, DROP COLUMN drop3, DROP COLUMN drop4;")
     cur.close()
 
 
