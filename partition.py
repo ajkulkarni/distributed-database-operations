@@ -43,11 +43,16 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
 
     for n in range(numberofpartitions):
         if(n == numberofpartitions - 1):
-            range_end = 5.05
+            range_end = 5.0
+        comp = ""
         try:
-            create = "CREATE TABLE range_part"+str(n + 1)+" (CHECK (rating >= "+str(range_start)+" AND rating < "+str(range_end)+")) INHERITS ("+ratingstablename+");"
+            if(n == 0):
+                comp = ">="
+            else:
+                comp = ">"
+            create = "CREATE TABLE range_part"+str(n)+" (CHECK (rating "+comp+" "+str(range_start)+" AND rating <= "+str(range_end)+")) INHERITS ("+ratingstablename+");"
             cur.execute(create)
-            insert = "INSERT INTO range_part"+str(n + 1)+" (userid, movieid, rating) SELECT userid, movieid, rating FROM "+ratingstablename+" WHERE rating >= "+str(range_start)+" AND rating < "+str(range_end)+";"
+            insert = "INSERT INTO range_part"+str(n)+" (userid, movieid, rating) SELECT userid, movieid, rating FROM "+ratingstablename+" WHERE rating "+comp+" "+str(range_start)+" AND rating <= "+str(range_end)+";"
             cur.execute(insert)
         except Exception, e:
             print e
@@ -135,11 +140,11 @@ def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
 
     for n in range(range_partitions):
         if(n == range_partitions - 1):
-            range_end = 5.05
+            range_end = 5.0
 
-        if(rating >= range_start and rating < range_end):
+        if((rating == 0 or rating > range_start) and rating <= range_end):
             try:
-                cur.execute("INSERT INTO range_part"+str(n+1)+" (userid, movieid, rating) VALUES (%s, %s, %s)", (userid, itemid, rating))
+                cur.execute("INSERT INTO range_part"+str(n)+" (userid, movieid, rating) VALUES (%s, %s, %s)", (userid, itemid, rating))
             except Exception, e:
                 print e
 
@@ -174,7 +179,7 @@ def create_db(dbname):
 def deletepartitionsandexit(openconnection):
     cur = openconnection.cursor()
     for n in range(range_partitions):
-        cur.execute("DROP TABLE IF EXISTS range_part"+str(n + 1))
+        cur.execute("DROP TABLE IF EXISTS range_part"+str(n))
     for n in range(round_partitions):
         cur.execute("DROP TABLE IF EXISTS rrobin_part"+str(n))
     cur.close()
