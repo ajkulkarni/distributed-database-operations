@@ -1,6 +1,7 @@
 #!/usr/bin/python2.7
 #
 # Implementation for the assignement
+# Ajay Kulkarni, 1208987971
 #
 
 import psycopg2
@@ -19,7 +20,7 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
     cur.execute("SELECT * FROM information_schema.tables WHERE table_name=%s", (ratingstablename,))
 
     if (bool(cur.rowcount) == True):
-        cur.execute("DROP TABLE "+ratingstablename+";")
+        cur.execute("DROP TABLE "+ratingstablename+" CASCADE;")
 
     cur.execute("CREATE TABLE "+ratingstablename+" (UserId int, drop1 varchar, MovieId int, drop2 varchar, Rating decimal, drop3 varchar, drop4 varchar);")
 
@@ -27,10 +28,13 @@ def loadratings(ratingstablename, ratingsfilepath, openconnection):
         cur.copy_from(f, ratingstablename, sep=":")
 
     cur.execute("ALTER TABLE "+ratingstablename+" DROP COLUMN drop1, DROP COLUMN drop2, DROP COLUMN drop3, DROP COLUMN drop4;")
+    openconnection.commit()
     cur.close()
 
 
 def rangepartition(ratingstablename, numberofpartitions, openconnection):
+    deletepartitionsandexit(openconnection)
+
     if (numberofpartitions < 0 or isinstance(numberofpartitions, float)):
         return
 
@@ -59,11 +63,13 @@ def rangepartition(ratingstablename, numberofpartitions, openconnection):
 
         range_start += increment
         range_end += increment
-
+    openconnection.commit()
     cur.close()
 
 
 def roundrobinpartition(ratingstablename, numberofpartitions, openconnection):
+    deletepartitionsandexit(openconnection)
+
     if (numberofpartitions < 0 or isinstance(numberofpartitions, float)):
         return
 
@@ -108,12 +114,13 @@ def roundrobinpartition(ratingstablename, numberofpartitions, openconnection):
 
     global current_partition_index
     current_partition_index = current_partition
+    openconnection.commit()
     cur.close()
     cursor.close()
 
 
 def roundrobininsert(ratingstablename, userid, itemid, rating, openconnection):
-    if (rating < 0 or rating > 5):
+    if (rating < 0 or rating > 5 or round_partitions == 0):
         return
 
     cur = openconnection.cursor()
@@ -126,11 +133,11 @@ def roundrobininsert(ratingstablename, userid, itemid, rating, openconnection):
             current_partition = 0;
     except Exception, e:
         print e
-
+    openconnection.commit()
     cur.close()
 
 def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
-    if (rating < 0 or rating > 5):
+    if (rating < 0 or rating > 5 or range_partitions == 0):
         return
 
     cur = openconnection.cursor()
@@ -150,7 +157,7 @@ def rangeinsert(ratingstablename, userid, itemid, rating, openconnection):
 
         range_start += increment
         range_end += increment
-
+    openconnection.commit()
     cur.close()
 
 def create_db(dbname):
@@ -182,6 +189,7 @@ def deletepartitionsandexit(openconnection):
         cur.execute("DROP TABLE IF EXISTS range_part"+str(n))
     for n in range(round_partitions):
         cur.execute("DROP TABLE IF EXISTS rrobin_part"+str(n))
+    openconnection.commit()
     cur.close()
 
 # Middleware
@@ -202,11 +210,12 @@ def before_test_script_starts_middleware(openconnection, databasename):
 
 def after_test_script_ends_middleware(openconnection, databasename):
     # Use it if you want to
-    rangepartition('Ratings', 5, openconnection)
-    rangeinsert('Ratings', 71568, 122, 2.5, openconnection)
-    roundrobinpartition('Ratings', 7, openconnection)
-    roundrobininsert('Ratings', 71568, 122, 2.5, openconnection)
-    deletepartitionsandexit(openconnection)
+    pass
+    #rangepartition('Ratings', 5, openconnection)
+    #rangeinsert('Ratings', 71568, 122, 2.5, openconnection)
+    #roundrobinpartition('Ratings', 7, openconnection)
+    #roundrobininsert('Ratings', 71568, 122, 2.5, openconnection)
+    #deletepartitionsandexit(openconnection)
 
 
 if __name__ == '__main__':
