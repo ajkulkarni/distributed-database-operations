@@ -1,6 +1,6 @@
 #!/usr/bin/python2.7
 #
-# Author: Ajay Kulkarni 1208987971
+# Author: Ajay Kulkarni
 #
 
 import psycopg2

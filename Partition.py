@@ -1,7 +1,6 @@
 #!/usr/bin/python2.7
 #
-# Implementation for the assignement
-# Ajay Kulkarni
+# Author: Ajay Kulkarni
 #
 
 import psycopg2
