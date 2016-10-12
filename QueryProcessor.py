@@ -9,13 +9,28 @@ import sys
 
 def RangeQuery(ratingsTableName, ratingMinValue, ratingMaxValue, openconnection):
     #RangeQuery on Range Partitiom
-    if (ratingMinValue < 0 or ratingMaxValue > 5):
+    target = open('RangeQueryOut.txt', 'w+')
+    if(ratingMinValue > ratingMaxValue):
+        target.close()
         return
+    if(ratingMinValue < 0):
+        ratingMinValue = 0
+    if(ratingMaxValue > 5):
+        ratingMaxValue = 5
     cursor = openconnection.cursor()
     cur = openconnection.cursor()
-    cursor.execute("SELECT PartitionNum FROM RangeRatingsMetadata WHERE (MinRating BETWEEN %f AND %f) OR (MaxRating BETWEEN %f AND %f)" %(ratingMinValue,ratingMaxValue,ratingMinValue,ratingMaxValue))
+    cursor.execute("SELECT MaxRating FROM RangeRatingsMetadata ORDER BY MaxRating ASC LIMIT 1")
+    max_rating = -1
+    for row in cursor:
+        max_rating = row[0]
+    comparison_operator1 = ">"
+    comparison_operator2 = "<"
+    if(ratingMaxValue < max_rating):
+        comparison_operator1 = ">="
+        comparison_operator2 = "<="
+    sql_str = "SELECT PartitionNum FROM RangeRatingsMetadata WHERE (MinRating "+comparison_operator1+" "+str(ratingMinValue)+" OR MinRating "+comparison_operator2+" "+str(ratingMaxValue)+") OR (MaxRating BETWEEN "+str(ratingMinValue)+" AND "+str(ratingMaxValue)+")"
+    cursor.execute(sql_str)
     partition_number = -1
-    target = open('RangeQueryOut.txt', 'w+')
     for row in cursor:
         partition_number = row[0]
         if(partition_number == -1):
@@ -45,15 +60,23 @@ def RangeQuery(ratingsTableName, ratingMinValue, ratingMaxValue, openconnection)
 
 def PointQuery(ratingsTableName, ratingValue, openconnection):
     #PointQuery on Range Partition
+    target = open('PointQueryOut.txt', 'w+')
     if (ratingValue < 0 or ratingValue > 5):
+        target.close()
         return
     cursor = openconnection.cursor()
     cur = openconnection.cursor()
-    cursor.execute("SELECT PartitionNum FROM RangeRatingsMetadata WHERE MinRating <=%f AND MaxRating >=%f" %(ratingValue,ratingValue))
+    cursor.execute("SELECT MaxRating FROM RangeRatingsMetadata ORDER BY MaxRating ASC LIMIT 1")
+    max_rating = -1
+    for row in cursor:
+        max_rating = row[0]
+    comparison_operator = "<"
+    if(ratingValue <= max_rating):
+        comparison_operator = "<="
+    cursor.execute("SELECT PartitionNum FROM RangeRatingsMetadata WHERE MinRating "+comparison_operator+"%f AND MaxRating >=%f" %(ratingValue,ratingValue))
     partition_number = -1
     for row in cursor:
         partition_number = row[0]
-    target = open('PointQueryOut.txt', 'w+')
     if(partition_number == -1):
         print "Something went wrong in fetching partition number"
         target.close()
